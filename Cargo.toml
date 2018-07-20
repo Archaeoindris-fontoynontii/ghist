@@ -1,0 +1,9 @@
+[package]
+name = "ghist"
+version = "0.1.0"
+authors = ["modderme123 <hidden>"]
+
+[dependencies]
+rand = "*"
+actix = "*"
+actix-web = { git = "https://github.com/actix/actix-web.git"}
