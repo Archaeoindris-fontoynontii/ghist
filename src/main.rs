@@ -1,17 +1,24 @@
 extern crate rand;
+extern crate nalgebra as na;
+
+#[macro_use]
+extern crate serde_derive;
+
+extern crate serde;
+extern crate serde_json;
 
 #[macro_use]
 extern crate actix;
 extern crate actix_web;
 
 use actix::*;
-use actix_web::*;
 use actix_web::server::HttpServer;
+use actix_web::*;
 
 use std::time::Instant;
 
 mod server;
-
+use server::{Keys,KeysMessage};
 /// This is our WebSocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
 struct WsChatSessionState {
@@ -24,7 +31,6 @@ fn chat_route(req: &HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
         req,
         WsChatSession {
             id: 0,
-            hb: Instant::now(),
             name: None,
         },
     )
@@ -33,8 +39,6 @@ fn chat_route(req: &HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
 struct WsChatSession {
     /// unique session id
     id: usize,
-    /// Client must send ping at least once per 10 seconds, otherwise we drop connection.
-    hb: Instant,
     /// peer name
     name: Option<String>,
 }
@@ -87,36 +91,21 @@ impl Handler<server::Message> for WsChatSession {
 /// WebSocket message handler
 impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
-        println!("Received: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) => ctx.pong(&msg),
-            ws::Message::Pong(_) => self.hb = Instant::now(),
+            ws::Message::Pong(_) => println!("Ping"),
             ws::Message::Text(text) => {
                 let m = text.trim();
-                // we check for /sss type of messages
-                if m.starts_with('/') {
-                    let v: Vec<&str> = m.splitn(2, ' ').collect();
-                    match v[0] {
-                        "/name" => {
-                            if v.len() == 2 {
-                                self.name = Some(v[1].to_owned());
-                            } else {
-                                ctx.text("!!! name is required");
-                            }
-                        }
-                        _ => ctx.text(format!("!!! unknown command: {:?}", m)),
-                    }
+                let k:Keys = serde_json::from_str(m).unwrap();
+
+                let msg = if let Some(ref name) = self.name {
+                    format!("{}: {}", name, m)
                 } else {
-                    let msg = if let Some(ref name) = self.name {
-                        format!("{}: {}", name, m)
-                    } else {
-                        m.to_owned()
-                    };
-                    // send message to chat server
-                    ctx.state()
-                        .addr
-                        .do_send(server::Message (msg))
-                }
+                    m.to_owned()
+                };
+                // send message to chat server
+                ctx.state().addr.do_send(server::KeysMessage{keys:k,id:self.id});
+                ctx.state().addr.do_send(server::Message(msg))
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
             ws::Message::Close(_) => {
@@ -127,7 +116,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
 }
 
 fn main() {
-    let sys = actix::System::new("ws-chat");
+    let sys = actix::System::new("ghist");
 
     // Start chat server actor in separate thread
     let server: Addr<_> = Arbiter::start(|_| server::ChatServer::default());
