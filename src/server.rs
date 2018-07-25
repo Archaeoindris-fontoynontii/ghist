@@ -20,26 +20,42 @@ pub struct Connect {
 }
 
 /// Session is disconnected
-#[derive(Message)]
+#[derive(Message, Serialize)]
 pub struct Disconnect {
     pub id: usize,
-}
-
-#[derive(Deserialize)]
-pub struct Keys {
-    x: i8,
-    y: i8,
 }
 
 #[derive(Message)]
 pub struct KeysMessage {
     pub id: usize,
-    pub keys: Keys,
+    pub keys: Vector2<f32>,
 }
 
 pub struct Player {
-    pub key: Keys, //Technically only needs 4 bits
+    pub key: Vector2<f32>,
     pub pos: Vector2<f32>,
+}
+
+pub trait Mob {
+    fn update(&mut self);
+}
+pub enum Mobs {
+    Skeleton { pos: Vector2<f32> },
+}
+impl Mob for Mobs {
+    fn update(&mut self) {
+        match self {
+            Mobs::Skeleton { pos } => {
+                let mut rng = rand::thread_rng();
+
+                pos.x += rng.gen::<f32>() * 10.0 - 5.0;
+                pos.y += rng.gen::<f32>() * 10.0 - 5.0;
+
+                pos.x = pos.x.max(0.0).min(800.0);
+                pos.y = pos.y.max(0.0).min(800.0);
+            }
+        }
+    }
 }
 
 /// `ChatServer` manages chat rooms and responsible for coordinating chat session.
@@ -47,15 +63,23 @@ pub struct Player {
 pub struct ChatServer {
     sessions: HashMap<usize, Recipient<Message>>,
     players: HashMap<usize, Player>,
+    mobs: Vec<Mobs>,
     rng: RefCell<ThreadRng>,
 }
 
 impl Default for ChatServer {
     fn default() -> ChatServer {
+        let mut rng = rand::thread_rng();
+
         ChatServer {
             sessions: HashMap::new(),
             players: HashMap::new(),
-            rng: RefCell::new(rand::thread_rng()),
+            mobs: (0..rng.gen_range(10, 100))
+                .map(|_| Mobs::Skeleton {
+                    pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
+                })
+                .collect(),
+            rng: RefCell::new(rng),
         }
     }
 }
@@ -65,8 +89,14 @@ struct ClientPlayer {
     pos: Vector2<f32>,
 }
 #[derive(Serialize)]
+struct ClientMob {
+    pos: Vector2<f32>,
+    t: String,
+}
+#[derive(Serialize)]
 struct Playfield {
     players: Vec<ClientPlayer>,
+    mobs: Vec<ClientMob>,
 }
 impl ChatServer {
     /// Send message to all users
@@ -76,19 +106,29 @@ impl ChatServer {
         }
     }
     fn tick(&self, ctx: &mut Context<Self>) {
-        ctx.run_later(Duration::new(0, 1), |act, ctx| {
-            //act.send_message("\"left\"");
-           // let players = ;
+        ctx.run_later(Duration::from_millis(5), |act, ctx| {
             for p in act.players.values_mut() {
-                p.pos.x += p.key.x as f32;
-                p.pos.y += p.key.y as f32;
+                p.pos += p.key * 2.0;
+                p.pos.x = p.pos.x.max(0.0).min(800.0);
+                p.pos.y = p.pos.y.max(0.0).min(800.0);
+            }
+            for m in &mut act.mobs {
+                m.update();
             }
             let playfield = Playfield {
-               players:act
-                   .players
-                   .iter()
-                   .map(|(i, p)| ClientPlayer { id: *i, pos: p.pos })
-                   .collect(),
+                players: act.players
+                    .iter()
+                    .map(|(i, p)| ClientPlayer { id: *i, pos: p.pos })
+                    .collect(),
+                mobs: act.mobs
+                    .iter()
+                    .map(|m| match m {
+                        Mobs::Skeleton { pos } => ClientMob {
+                            t: "skeleton".to_string(),
+                            pos: *pos,
+                        },
+                    })
+                    .collect(),
             };
             let serialized = ::serde_json::to_string(&playfield).unwrap();
             act.send_message(&serialized);
@@ -116,22 +156,16 @@ impl Handler<Connect> for ChatServer {
     type Result = usize;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        // for (i, p) in &self.players {
-        //     msg.addr.do_send(Message(
-        //         json!({
-        //             "id": i,
-        //             "pos": p.pos,
-        //         }).to_string(),
-        //     ));
-        // }
-
         // register session with random id
         let id = self.rng.borrow_mut().gen::<usize>();
         self.sessions.insert(id, msg.addr);
-        self.players.insert(id, Player {
-            key: Keys { x: 0, y: 0 },
-            pos: Vector2::new(300.0,200.0)
-        });
+        self.players.insert(
+            id,
+            Player {
+                key: Vector2::new(0.0, 0.0),
+                pos: Vector2::new(300.0, 200.0),
+            },
+        );
         // send id back
         id
     }
@@ -145,6 +179,7 @@ impl Handler<Disconnect> for ChatServer {
         // remove address
         self.sessions.remove(&msg.id);
         self.players.remove(&msg.id);
+        self.send_message(&::serde_json::to_string(&msg).unwrap())
     }
 }
 
@@ -160,7 +195,7 @@ impl Handler<KeysMessage> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: KeysMessage, _: &mut Context<Self>) {
-        if let Some(p) = self.players.get_mut(&msg.id){
+        if let Some(p) = self.players.get_mut(&msg.id) {
             p.key = msg.keys
         }
     }

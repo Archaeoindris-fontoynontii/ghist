@@ -1,5 +1,5 @@
-extern crate rand;
 extern crate nalgebra as na;
+extern crate rand;
 
 #[macro_use]
 extern crate serde_derive;
@@ -11,14 +11,14 @@ extern crate serde_json;
 extern crate actix;
 extern crate actix_web;
 
+use na::Vector2;
+
 use actix::*;
 use actix_web::server::HttpServer;
 use actix_web::*;
 
-use std::time::Instant;
-
 mod server;
-use server::{Keys,KeysMessage};
+
 /// This is our WebSocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
 struct WsChatSessionState {
@@ -27,13 +27,7 @@ struct WsChatSessionState {
 
 /// Entry point for our route
 fn chat_route(req: &HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
-    ws::start(
-        req,
-        WsChatSession {
-            id: 0,
-            name: None,
-        },
-    )
+    ws::start(req, WsChatSession { id: 0, name: None })
 }
 
 struct WsChatSession {
@@ -95,17 +89,15 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Pong(_) => println!("Ping"),
             ws::Message::Text(text) => {
+                // All the client sends are key messages so we assume that the message is a key message
                 let m = text.trim();
-                let k:Keys = serde_json::from_str(m).unwrap();
+                let k: Vector2<f32> = serde_json::from_str(m).unwrap();
 
-                let msg = if let Some(ref name) = self.name {
-                    format!("{}: {}", name, m)
-                } else {
-                    m.to_owned()
-                };
                 // send message to chat server
-                ctx.state().addr.do_send(server::KeysMessage{keys:k,id:self.id});
-                ctx.state().addr.do_send(server::Message(msg))
+                ctx.state().addr.do_send(server::KeysMessage {
+                    keys: k,
+                    id: self.id,
+                });
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
             ws::Message::Close(_) => {
