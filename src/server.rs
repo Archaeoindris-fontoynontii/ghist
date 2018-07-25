@@ -1,5 +1,5 @@
-//! `ChatServer` is an actor. It maintains list of connection client session.
-//!  Peers send messages to other peers through `ChatServer`.
+//! `GameServer` is an actor. It maintains list of connection client session.
+//!  Peers send messages to other peers through `GameServer`.
 
 use actix::prelude::*;
 use na::Vector2;
@@ -8,11 +8,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Duration;
 
-/// Message for chat server communications
+/// Message for game server communications
 #[derive(Message)]
 pub struct Message(pub String);
 
-/// New chat session is created
+/// New game session is created
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
@@ -59,32 +59,15 @@ impl Mob for Mobs {
     }
 }
 
-/// `ChatServer` manages chat rooms and responsible for coordinating chat session.
+/// `GameServer` responsible for coordinating game sessions.
 /// implementation is super primitive
-pub struct ChatServer {
+pub struct GameServer {
     sessions: HashMap<usize, Recipient<Message>>,
     players: HashMap<usize, Player>,
     mobs: Vec<Mobs>,
     rng: RefCell<ThreadRng>,
 }
 
-impl Default for ChatServer {
-    fn default() -> ChatServer {
-        let mut rng = rand::thread_rng();
-
-        ChatServer {
-            sessions: HashMap::new(),
-            players: HashMap::new(),
-            mobs: (0..rng.gen_range(10, 100))
-                .map(|_| Mobs::Skeleton {
-                    pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
-                    health: 128,
-                })
-                .collect(),
-            rng: RefCell::new(rng),
-        }
-    }
-}
 #[derive(Serialize)]
 struct ClientPlayer {
     id: usize,
@@ -102,8 +85,23 @@ struct Playfield {
     players: Vec<ClientPlayer>,
     mobs: Vec<ClientMob>,
 }
-impl ChatServer {
-    /// Send message to all users
+impl GameServer {
+    pub fn new() -> GameServer {
+        let mut rng = rand::thread_rng();
+
+        GameServer {
+            sessions: HashMap::new(),
+            players: HashMap::new(),
+            mobs: (0..rng.gen_range(10, 100))
+                .map(|_| Mobs::Skeleton {
+                    pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
+                    health: 128,
+                })
+                .collect(),
+            rng: RefCell::new(rng),
+        }
+    }
+    /// Send message to all players
     fn send_message(&self, message: &str) {
         for addr in self.sessions.values() {
             let _ = addr.do_send(Message(message.to_owned()));
@@ -121,8 +119,7 @@ impl ChatServer {
             }
 
             let playfield = Playfield {
-                players: act
-                    .players
+                players: act.players
                     .iter()
                     .map(|(i, p)| ClientPlayer {
                         id: *i,
@@ -130,8 +127,7 @@ impl ChatServer {
                         health: p.health,
                     })
                     .collect(),
-                mobs: act
-                    .mobs
+                mobs: act.mobs
                     .iter()
                     .map(|m| match m {
                         Mobs::Skeleton { pos, health } => ClientMob {
@@ -150,8 +146,8 @@ impl ChatServer {
     }
 }
 
-/// Make actor from `ChatServer`
-impl Actor for ChatServer {
+/// Make actor from `GameServer`
+impl Actor for GameServer {
     /// We are going to use simple Context, we just need ability to communicate
     /// with other actors.
     type Context = Context<Self>;
@@ -164,7 +160,7 @@ impl Actor for ChatServer {
 /// Handler for Connect message.
 ///
 /// Register new session and assign unique id to this session
-impl Handler<Connect> for ChatServer {
+impl Handler<Connect> for GameServer {
     type Result = usize;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
@@ -185,7 +181,7 @@ impl Handler<Connect> for ChatServer {
 }
 
 /// Handler for Disconnect message.
-impl Handler<Disconnect> for ChatServer {
+impl Handler<Disconnect> for GameServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
@@ -196,15 +192,7 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-/// Handler for Message message.
-impl Handler<Message> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
-        self.send_message(&msg.0);
-    }
-}
-impl Handler<KeysMessage> for ChatServer {
+impl Handler<KeysMessage> for GameServer {
     type Result = ();
 
     fn handle(&mut self, msg: KeysMessage, _: &mut Context<Self>) {

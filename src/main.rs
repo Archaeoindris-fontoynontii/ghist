@@ -21,32 +21,32 @@ mod server;
 
 /// This is our WebSocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
-struct WsChatSessionState {
-    addr: Addr<server::ChatServer>,
+struct WsGameSessionState {
+    addr: Addr<server::GameServer>,
 }
 
 /// Entry point for our route
-fn chat_route(req: &HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
-    ws::start(req, WsChatSession { id: 0, name: None })
+fn game_route(req: &HttpRequest<WsGameSessionState>) -> Result<HttpResponse> {
+    ws::start(req, WsGameSession { id: 0, name: None })
 }
 
-struct WsChatSession {
+struct WsGameSession {
     /// unique session id
     id: usize,
     /// peer name
     name: Option<String>,
 }
 
-impl Actor for WsChatSession {
-    type Context = ws::WebsocketContext<Self, WsChatSessionState>;
+impl Actor for WsGameSession {
+    type Context = ws::WebsocketContext<Self, WsGameSessionState>;
 
     /// Method is called on actor start.
-    /// We register ws session with ChatServer
+    /// We register ws session with GameServer
     fn started(&mut self, ctx: &mut Self::Context) {
-        // register self in chat server. `AsyncContext::wait` register
+        // register self in game server. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        // HttpContext::state() is instance of WsChatSessionState, state is shared across all
+        // HttpContext::state() is instance of WsGameSessionState, state is shared across all
         // routes within application
         let addr: Addr<_> = ctx.address();
         ctx.state()
@@ -58,7 +58,7 @@ impl Actor for WsChatSession {
             .then(|res, act, ctx| {
                 match res {
                     Ok(res) => act.id = res,
-                    // something is wrong with chat server
+                    // something is wrong with game server
                     _ => ctx.stop(),
                 }
                 fut::ok(())
@@ -67,14 +67,14 @@ impl Actor for WsChatSession {
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
-        // notify chat server
+        // notify game server
         ctx.state().addr.do_send(server::Disconnect { id: self.id });
         Running::Stop
     }
 }
 
-/// Handle messages from chat server, we simply send it to peer WebSocket
-impl Handler<server::Message> for WsChatSession {
+/// Handle messages from game server, we simply send it to peer WebSocket
+impl Handler<server::Message> for WsGameSession {
     type Result = ();
 
     fn handle(&mut self, msg: server::Message, ctx: &mut Self::Context) {
@@ -83,7 +83,7 @@ impl Handler<server::Message> for WsChatSession {
 }
 
 /// WebSocket message handler
-impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
+impl StreamHandler<ws::Message, ws::ProtocolError> for WsGameSession {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
             ws::Message::Ping(msg) => ctx.pong(&msg),
@@ -93,7 +93,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
                 let m = text.trim();
                 let k: Vector2<f32> = serde_json::from_str(m).unwrap();
 
-                // send message to chat server
+                // send message to game server
                 ctx.state().addr.do_send(server::KeysMessage {
                     keys: k,
                     id: self.id,
@@ -110,18 +110,18 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
 fn main() {
     let sys = actix::System::new("ghist");
 
-    // Start chat server actor in separate thread
-    let server: Addr<_> = Arbiter::start(|_| server::ChatServer::default());
+    // Start game server actor in separate thread
+    let server: Addr<_> = Arbiter::start(|_| server::GameServer::new());
 
     // Create Http server with WebSocket support
     HttpServer::new(move || {
         // WebSocket sessions state
-        let state = WsChatSessionState {
+        let state = WsGameSessionState {
             addr: server.clone(),
         };
 
         App::with_state(state)
-                .resource("/ws/", |r| r.f(chat_route))
+                .resource("/ws/", |r| r.f(game_route))
                 // static resources
                 .handler("/", fs::StaticFiles::new("static/").unwrap().index_file("index.html"))
     }).bind("0.0.0.0:8080")
