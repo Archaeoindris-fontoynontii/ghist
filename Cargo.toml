@@ -6,6 +6,7 @@ authors = ["modderme123 <hidden>"]
 [dependencies]
 rand = "*"
 nalgebra = {version = "*", features = ["serde-serialize"]}
+ncollide2d = "*"
 
 serde = "*"
 serde_derive = "*"
