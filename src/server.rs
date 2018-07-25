@@ -34,18 +34,19 @@ pub struct KeysMessage {
 pub struct Player {
     pub key: Vector2<f32>,
     pub pos: Vector2<f32>,
+    pub health: u8,
 }
 
 pub trait Mob {
     fn update(&mut self);
 }
 pub enum Mobs {
-    Skeleton { pos: Vector2<f32> },
+    Skeleton { pos: Vector2<f32>, health: u8 },
 }
 impl Mob for Mobs {
     fn update(&mut self) {
         match self {
-            Mobs::Skeleton { pos } => {
+            Mobs::Skeleton { pos, health } => {
                 let mut rng = rand::thread_rng();
 
                 pos.x += rng.gen::<f32>() * 10.0 - 5.0;
@@ -77,6 +78,7 @@ impl Default for ChatServer {
             mobs: (0..rng.gen_range(10, 100))
                 .map(|_| Mobs::Skeleton {
                     pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
+                    health: 128,
                 })
                 .collect(),
             rng: RefCell::new(rng),
@@ -87,10 +89,12 @@ impl Default for ChatServer {
 struct ClientPlayer {
     id: usize,
     pos: Vector2<f32>,
+    health: u8,
 }
 #[derive(Serialize)]
 struct ClientMob {
     pos: Vector2<f32>,
+    health: u8,
     t: String,
 }
 #[derive(Serialize)]
@@ -101,7 +105,7 @@ struct Playfield {
 impl ChatServer {
     /// Send message to all users
     fn send_message(&self, message: &str) {
-        for (_, addr) in &self.sessions {
+        for addr in self.sessions.values() {
             let _ = addr.do_send(Message(message.to_owned()));
         }
     }
@@ -115,16 +119,24 @@ impl ChatServer {
             for m in &mut act.mobs {
                 m.update();
             }
+
             let playfield = Playfield {
-                players: act.players
+                players: act
+                    .players
                     .iter()
-                    .map(|(i, p)| ClientPlayer { id: *i, pos: p.pos })
+                    .map(|(i, p)| ClientPlayer {
+                        id: *i,
+                        pos: p.pos,
+                        health: p.health,
+                    })
                     .collect(),
-                mobs: act.mobs
+                mobs: act
+                    .mobs
                     .iter()
                     .map(|m| match m {
-                        Mobs::Skeleton { pos } => ClientMob {
+                        Mobs::Skeleton { pos, health } => ClientMob {
                             t: "skeleton".to_string(),
+                            health: *health,
                             pos: *pos,
                         },
                     })
@@ -164,6 +176,7 @@ impl Handler<Connect> for ChatServer {
             Player {
                 key: Vector2::new(0.0, 0.0),
                 pos: Vector2::new(300.0, 200.0),
+                health: 128,
             },
         );
         // send id back

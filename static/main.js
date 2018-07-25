@@ -29,6 +29,7 @@ ws.onmessage = function(e) {
 			}
 			mobs[i].x = m.pos[0];
 			mobs[i].y = m.pos[1];
+			mobs[i].alpha = m.health / 128;
 		});
 	}
 	if (m.players) {
@@ -44,6 +45,7 @@ ws.onmessage = function(e) {
 			}
 			sprites[p.id].x = p.pos[0];
 			sprites[p.id].y = p.pos[1];
+			sprites[p.id].alpha = p.health / 128;
 		});
 	}
 };
@@ -54,17 +56,17 @@ function send(m) {
 const keys = [0, 0];
 window.addEventListener("keydown", e => {
 	let keyCopy = keys.slice();
-	if (e.keyCode == 39) keys[0] = 1;
-	if (e.keyCode == 37) keys[0] = -1;
-	if (e.keyCode == 40) keys[1] = 1;
-	if (e.keyCode == 38) keys[1] = -1;
+	if (e.keyCode == 68) keys[0] = 1;
+	if (e.keyCode == 65) keys[0] = -1;
+	if (e.keyCode == 83) keys[1] = 1;
+	if (e.keyCode == 87) keys[1] = -1;
 	if (keys[0] != keyCopy[0] || keys[1] != keyCopy[1]) send(keys);
 });
 window.addEventListener("keyup", e => {
-	if (e.keyCode == 39 && keys[0] == 1) keys[0] = 0;
-	if (e.keyCode == 37 && keys[0] == -1) keys[0] = 0;
-	if (e.keyCode == 40 && keys[1] == 1) keys[1] = 0;
-	if (e.keyCode == 38 && keys[1] == -1) keys[1] = 0;
+	if (e.keyCode == 68 && keys[0] == 1) keys[0] = 0;
+	if (e.keyCode == 65 && keys[0] == -1) keys[0] = 0;
+	if (e.keyCode == 83 && keys[1] == 1) keys[1] = 0;
+	if (e.keyCode == 87 && keys[1] == -1) keys[1] = 0;
 	send(keys);
 });
 window.addEventListener("resize", () => {
