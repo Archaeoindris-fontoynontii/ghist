@@ -5,14 +5,14 @@ let app = new PIXI.Application(window.innerWidth, window.innerHeight, {
 });
 PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.NEAREST;
 document.body.appendChild(app.view);
+app.stage.position.x = window.innerWidth / 2;
+app.stage.position.y = window.innerHeight / 2;
 
 var graphics = new PIXI.Graphics();
 graphics.lineStyle(2, 0x0000ff, 1);
 graphics.beginFill(0xff700b, 1);
 graphics.drawRect(0, 0, 800, 800);
 app.stage.addChild(graphics);
-graphics.x = window.innerWidth / 2 - 300;
-graphics.y = window.innerHeight / 2 - 200;
 
 const sprites = {};
 const mobs = [];
@@ -26,6 +26,7 @@ ws.onopen = () => (opened = true);
 ws.onclose = () => (opened = false);
 ws.onmessage = function(e) {
 	const m = JSON.parse(e.data);
+	if (m.id) myid = m.id;
 	if (m.mobs) {
 		m.mobs.forEach((m, i) => {
 			if (!mobs[i]) {
@@ -37,8 +38,8 @@ ws.onmessage = function(e) {
 				app.stage.addChild(sprite);
 				mobs[i] = sprite;
 			}
-			mobs[i].x = m.pos[0] - mypos[0] + window.innerWidth / 2;
-			mobs[i].y = m.pos[1] - mypos[1] + window.innerHeight / 2;
+			mobs[i].x = m.pos[0];
+			mobs[i].y = m.pos[1];
 			mobs[i].alpha = m.health / 128;
 		});
 	}
@@ -53,15 +54,15 @@ ws.onmessage = function(e) {
 				app.stage.addChild(sprite);
 				sprites[p.id] = sprite;
 			}
-			if (p.id == myid) mypos = p.pos;
-			sprites[p.id].x = p.pos[0] - mypos[0] + window.innerWidth / 2;
-			sprites[p.id].y = p.pos[1] - mypos[1] + window.innerHeight / 2;
+			if (p.id == myid) {
+				app.stage.pivot.x = p.pos[0];
+				app.stage.pivot.y = p.pos[1];
+			}
+			sprites[p.id].x = p.pos[0];
+			sprites[p.id].y = p.pos[1];
 			sprites[p.id].alpha = p.health / 128;
 		});
 	}
-	graphics.x = window.innerWidth / 2 - mypos[0];
-	graphics.y = window.innerHeight / 2 - mypos[1];
-	if (m.id) myid = m.id;
 };
 
 function send(m) {
@@ -91,4 +92,6 @@ window.addEventListener("mouseup", e => {
 });
 window.addEventListener("resize", e => {
 	app.renderer.resize(window.innerWidth, window.innerHeight);
+	app.stage.position.x = window.innerWidth / 2;
+	app.stage.position.y = window.innerHeight / 2;
 });
