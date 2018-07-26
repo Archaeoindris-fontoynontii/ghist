@@ -5,6 +5,7 @@ extern crate rand;
 extern crate serde_derive;
 
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 
 #[macro_use]
@@ -18,6 +19,7 @@ use actix_web::server::HttpServer;
 use actix_web::*;
 
 mod server;
+use server::{ClientMessage, ServerMessage};
 
 /// This is our WebSocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
@@ -57,7 +59,15 @@ impl Actor for WsGameSession {
             .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok(res) => {
+                        act.id = res;
+                        ctx.text(
+                            json!({
+                                "id": act.id,
+                                "pos": Vector2::new(300.0, 200.0),
+                            }).to_string(),
+                        );
+                    }
                     // something is wrong with game server
                     _ => ctx.stop(),
                 }
@@ -90,14 +100,11 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsGameSession {
             ws::Message::Pong(_) => println!("Ping"),
             ws::Message::Text(text) => {
                 // All the client sends are key messages so we assume that the message is a key message
-                let m = text.trim();
-                let k: Vector2<f32> = serde_json::from_str(m).unwrap();
-
+                let m: ClientMessage = serde_json::from_str(text.trim()).unwrap();
                 // send message to game server
-                ctx.state().addr.do_send(server::KeysMessage {
-                    keys: k,
-                    id: self.id,
-                });
+                ctx.state()
+                    .addr
+                    .do_send(server::ServerMessage { id: self.id, m });
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
             ws::Message::Close(_) => {

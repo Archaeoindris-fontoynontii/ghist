@@ -25,10 +25,16 @@ pub struct Disconnect {
     pub id: usize,
 }
 
+#[derive(Deserialize)]
+pub enum ClientMessage {
+    Keys(Vector2<f32>),
+    Click(bool),
+}
+
 #[derive(Message)]
-pub struct KeysMessage {
+pub struct ServerMessage {
     pub id: usize,
-    pub keys: Vector2<f32>,
+    pub m: ClientMessage,
 }
 
 pub struct Player {
@@ -92,7 +98,7 @@ impl GameServer {
         GameServer {
             sessions: HashMap::new(),
             players: HashMap::new(),
-            mobs: (0..rng.gen_range(10, 100))
+            mobs: (0..rng.gen_range(5, 20))
                 .map(|_| Mobs::Skeleton {
                     pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
                     health: 128,
@@ -192,12 +198,15 @@ impl Handler<Disconnect> for GameServer {
     }
 }
 
-impl Handler<KeysMessage> for GameServer {
+impl Handler<ServerMessage> for GameServer {
     type Result = ();
 
-    fn handle(&mut self, msg: KeysMessage, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: ServerMessage, _: &mut Context<Self>) {
         if let Some(p) = self.players.get_mut(&msg.id) {
-            p.key = msg.keys
+            match msg.m {
+                ClientMessage::Keys(k) => p.key = k,
+                ClientMessage::Click(b) => (),
+            }
         }
     }
 }
