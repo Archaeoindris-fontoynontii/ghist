@@ -124,8 +124,9 @@ impl GameServer {
                 m.update();
             }
 
-            let playfield = Playfield {
-                players: act.players
+            let mut playfield = Playfield {
+                players: act
+                    .players
                     .iter()
                     .map(|(i, p)| ClientPlayer {
                         id: *i,
@@ -144,11 +145,18 @@ impl GameServer {
                     })
                     .collect(),
             };
+            playfield.collide_players();
             let serialized = ::serde_json::to_string(&playfield).unwrap();
             act.send_message(&serialized);
 
             act.tick(ctx);
         });
+    }
+}
+
+impl Playfield {
+    fn collide_players(&mut self) {
+        // self.players
     }
 }
 
