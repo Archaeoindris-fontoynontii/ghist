@@ -64,7 +64,7 @@ impl Actor for WsGameSession {
                         ctx.text(
                             json!({
                                 "id": act.id,
-                                "pos": Vector2::new(300.0, 200.0),
+                                "pos": Vector2::new(400.0, 400.0),
                             }).to_string(),
                         );
                     }
@@ -101,10 +101,11 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsGameSession {
             ws::Message::Text(text) => {
                 // All the client sends are key messages so we assume that the message is a key message
                 let m: ClientMessage = serde_json::from_str(text.trim()).unwrap();
+                if let ClientMessage::Name(s) = &m {
+                    self.name = Some(s.to_string());
+                }
                 // send message to game server
-                ctx.state()
-                    .addr
-                    .do_send(server::ServerMessage { id: self.id, m });
+                ctx.state().addr.do_send(ServerMessage { id: self.id, m });
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
             ws::Message::Close(_) => {

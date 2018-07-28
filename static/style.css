@@ -2,6 +2,7 @@ html,
 body {
 	padding: 0;
 	margin: 0;
+	font-family: "Nova Square";
 }
 
 canvas {
@@ -9,4 +10,36 @@ canvas {
 	top: 0;
 	left: 0;
 	z-index: -1;
+}
+#login {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+
+input {
+	padding: 4px 8px;
+	width: 100%;
+	min-height: 26px;
+	box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.15),
+		inset 0 6px 0 rgba(0, 0, 0, 0.2), 2px 2px 0 rgba(0, 0, 0, 0.1),
+		0 0 0 0 transparent, 0 0 0 0 transparent;
+	background: #45283c;
+	border: solid 2px;
+	border-color: #734037 #46394a #46394a #735546;
+	color: #f9e6af;
+	border-radius: 3px;
+	font-family: "Nova Square";
+}
+
+input:focus {
+	outline: 0;
+	box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.15),
+		inset 0 6px 0 rgba(0, 0, 0, 0.2), 2px 2px 0 rgba(0, 0, 0, 0.1),
+		0 0 2px 2px #ffb100, 0 0 12px 3px #ff6c00;
+}
+
+input:hover {
+	filter: grayscale(35%) hue-rotate(-25deg) sepia(15%) brightness(110%);
 }

@@ -27,6 +27,7 @@ pub struct Disconnect {
 
 #[derive(Deserialize)]
 pub enum ClientMessage {
+    Name(String),
     Keys(Vector2<f32>),
     Click(bool),
 }
@@ -41,6 +42,7 @@ pub struct Player {
     pub key: Vector2<f32>,
     pub pos: Vector2<f32>,
     pub health: u8,
+    pub mouse: bool,
 }
 
 pub trait Mob {
@@ -52,7 +54,7 @@ pub enum Mobs {
 impl Mob for Mobs {
     fn update(&mut self) {
         match self {
-            Mobs::Skeleton { pos, health } => {
+            Mobs::Skeleton { pos, health: _ } => {
                 let mut rng = rand::thread_rng();
 
                 pos.x += rng.gen::<f32>() * 10.0 - 5.0;
@@ -134,7 +136,8 @@ impl GameServer {
                         health: p.health,
                     })
                     .collect(),
-                mobs: act.mobs
+                mobs: act
+                    .mobs
                     .iter()
                     .map(|m| match m {
                         Mobs::Skeleton { pos, health } => ClientMob {
@@ -181,14 +184,7 @@ impl Handler<Connect> for GameServer {
         // register session with random id
         let id = self.rng.borrow_mut().gen::<usize>();
         self.sessions.insert(id, msg.addr);
-        self.players.insert(
-            id,
-            Player {
-                key: Vector2::new(0.0, 0.0),
-                pos: Vector2::new(300.0, 200.0),
-                health: 128,
-            },
-        );
+
         // send id back
         id
     }
@@ -210,10 +206,22 @@ impl Handler<ServerMessage> for GameServer {
     type Result = ();
 
     fn handle(&mut self, msg: ServerMessage, _: &mut Context<Self>) {
+        if let ClientMessage::Name(_) = msg.m {
+            self.players.insert(
+                msg.id,
+                Player {
+                    key: Vector2::new(0.0, 0.0),
+                    pos: Vector2::new(400.0, 400.0),
+                    health: 128,
+                    mouse: false,
+                },
+            );
+        }
         if let Some(p) = self.players.get_mut(&msg.id) {
             match msg.m {
                 ClientMessage::Keys(k) => p.key = k,
-                ClientMessage::Click(b) => (),
+                ClientMessage::Click(b) => p.mouse = b,
+                ClientMessage::Name(_) => (),
             }
         }
     }
