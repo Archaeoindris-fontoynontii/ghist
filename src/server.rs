@@ -54,7 +54,7 @@ pub enum Mobs {
 impl Mob for Mobs {
     fn update(&mut self) {
         match self {
-            Mobs::Skeleton { pos, health: _ } => {
+            Mobs::Skeleton { pos, .. } => {
                 let mut rng = rand::thread_rng();
 
                 pos.x += rng.gen::<f32>() * 10.0 - 5.0;

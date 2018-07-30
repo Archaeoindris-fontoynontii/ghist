@@ -2,6 +2,7 @@
 name = "ghist"
 version = "0.1.0"
 authors = ["modderme123 <hidden>"]
+build = "build.rs"
 
 [dependencies]
 rand = "*"

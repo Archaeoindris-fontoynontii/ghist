@@ -1,3 +1,5 @@
+import * as PIXI from 'pixi.js'
+
 let app = new PIXI.Application(window.innerWidth, window.innerHeight, {
 	backgroundColor: 0xf1ddae,
 	autoResize: true,
