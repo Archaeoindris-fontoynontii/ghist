@@ -3,12 +3,12 @@
 
 use actix::prelude::*;
 use na::Vector2;
+use ncollide2d::shape::{Cuboid, ShapeHandle};
+use ncollide2d::world::{CollisionGroups, CollisionWorld, GeometricQueryType};
 use rand::{self, Rng, ThreadRng};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Duration;
-use ncollide2d::world::{CollisionWorld, CollisionGroups, GeometricQueryType};
-use ncollide2d::shape::{ShapeHandle, Cuboid};
 
 /// Message for game server communications
 #[derive(Message)]
@@ -75,13 +75,14 @@ pub struct GameServer {
     sessions: HashMap<usize, Recipient<Message>>,
     players: HashMap<usize, Player>,
     mobs: Vec<Mobs>,
+    cw: CollisionWorld<f32, usize>,
     rng: RefCell<ThreadRng>,
 }
 
 #[derive(Serialize)]
 struct ClientPlayer {
     id: usize,
-pos: Vector2<f32>,
+    pos: Vector2<f32>,
     health: u8,
 }
 #[derive(Serialize)]
@@ -108,6 +109,7 @@ impl GameServer {
                     health: 128,
                 })
                 .collect(),
+            cw: CollisionWorld::new(0.02),
             rng: RefCell::new(rng),
         }
     }
@@ -161,19 +163,18 @@ impl GameServer {
 
     fn collide_players(&mut self) {
         // self.players
-        let mut world: CollisionWorld<f32, &mut Player> = CollisionWorld::new(0.02);
-        if let Some(player) = self.players.values_mut().next() {
+        if let Some((id, player)) = self.players.iter().next() {
             let position = ::na::Isometry2::new(player.pos, ::na::zero());
             // skeleton size 84, 150
             // player size 112, 200
             let shape = ShapeHandle::new(Cuboid::new(Vector2::new(56.0, 100.0)));
             let collision_groups = CollisionGroups::new();
             let proximity_query = GeometricQueryType::Proximity(0.0);
-            world.add(position, shape, collision_groups, proximity_query, player);
+            self.cw
+                .add(position, shape, collision_groups, proximity_query, *id);
         }
     }
 }
-
 
 /// Make actor from `GameServer`
 impl Actor for GameServer {
