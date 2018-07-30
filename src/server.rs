@@ -7,6 +7,8 @@ use rand::{self, Rng, ThreadRng};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Duration;
+use ncollide2d::world::{CollisionWorld, CollisionGroups, GeometricQueryType};
+use ncollide2d::shape::{ShapeHandle, Cuboid};
 
 /// Message for game server communications
 #[derive(Message)]
@@ -79,7 +81,7 @@ pub struct GameServer {
 #[derive(Serialize)]
 struct ClientPlayer {
     id: usize,
-    pos: Vector2<f32>,
+pos: Vector2<f32>,
     health: u8,
 }
 #[derive(Serialize)]
@@ -126,7 +128,9 @@ impl GameServer {
                 m.update();
             }
 
-            let mut playfield = Playfield {
+            act.collide_players();
+
+            let playfield = Playfield {
                 players: act
                     .players
                     .iter()
@@ -148,20 +152,28 @@ impl GameServer {
                     })
                     .collect(),
             };
-            playfield.collide_players();
             let serialized = ::serde_json::to_string(&playfield).unwrap();
             act.send_message(&serialized);
 
             act.tick(ctx);
         });
     }
-}
 
-impl Playfield {
     fn collide_players(&mut self) {
         // self.players
+        let mut world: CollisionWorld<f32, &mut Player> = CollisionWorld::new(0.02);
+        if let Some(player) = self.players.values_mut().next() {
+            let position = ::na::Isometry2::new(player.pos, ::na::zero());
+            // skeleton size 84, 150
+            // player size 112, 200
+            let shape = ShapeHandle::new(Cuboid::new(Vector2::new(56.0, 100.0)));
+            let collision_groups = CollisionGroups::new();
+            let proximity_query = GeometricQueryType::Proximity(0.0);
+            world.add(position, shape, collision_groups, proximity_query, player);
+        }
     }
 }
+
 
 /// Make actor from `GameServer`
 impl Actor for GameServer {

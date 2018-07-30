@@ -1,4 +1,6 @@
 extern crate nalgebra as na;
+extern crate ncollide2d;
+
 extern crate rand;
 
 #[macro_use]
