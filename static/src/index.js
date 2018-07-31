@@ -1,4 +1,4 @@
-import * as PIXI from 'pixi.js'
+import * as PIXI from "pixi.js";
 
 let app = new PIXI.Application(window.innerWidth, window.innerHeight, {
 	backgroundColor: 0xf1ddae,
@@ -31,7 +31,7 @@ createWorld();
 topBorder();
 
 const sprites = {};
-const mobs = [];
+const mobs = {};
 
 var loaded = false;
 var frames = [];
@@ -69,19 +69,19 @@ ws.addEventListener("message", e => {
 	const m = JSON.parse(e.data);
 	if (m.id) myid = m.id;
 	if (m.mobs) {
-		m.mobs.forEach((m, i) => {
-			if (!mobs[i]) {
+		m.mobs.forEach(m => {
+			if (!mobs[m.id]) {
 				let sprite = PIXI.Sprite.from(loaded ? "0001.png" : PIXI.Texture.EMPTY);
 				sprite.anchor.set(0.5);
 				sprite.scale.x = 3;
 				sprite.scale.y = 3;
 
 				app.stage.addChild(sprite);
-				mobs[i] = sprite;
+				mobs[m.id] = sprite;
 			}
-			mobs[i].x = m.pos[0];
-			mobs[i].y = m.pos[1];
-			mobs[i].alpha = m.health / 128;
+			mobs[m.id].x = m.pos[0];
+			mobs[m.id].y = m.pos[1];
+			mobs[m.id].alpha = m.health / 128;
 		});
 	}
 	if (m.players) {

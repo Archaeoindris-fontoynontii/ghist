@@ -3,8 +3,12 @@
 
 use actix::prelude::*;
 use na::Vector2;
+use ncollide2d::events::ContactEvent;
+use ncollide2d::query::Proximity;
 use ncollide2d::shape::{Cuboid, ShapeHandle};
-use ncollide2d::world::{CollisionGroups, CollisionWorld, GeometricQueryType};
+use ncollide2d::world::{
+    CollisionGroups, CollisionObjectHandle, CollisionWorld, GeometricQueryType,
+};
 use rand::{self, Rng, ThreadRng};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -74,8 +78,10 @@ impl Mob for Mobs {
 pub struct GameServer {
     sessions: HashMap<usize, Recipient<Message>>,
     players: HashMap<usize, Player>,
-    mobs: Vec<Mobs>,
-    cw: CollisionWorld<f32, usize>,
+    mobs: HashMap<usize, Mobs>,
+    cw: CollisionWorld<f32, CollisionId>,      // Collision World
+    cg: CollisionGroups,                       // Collision Groups
+    ch: HashMap<usize, CollisionObjectHandle>, // Collision Handle
     rng: RefCell<ThreadRng>,
 }
 
@@ -87,6 +93,7 @@ struct ClientPlayer {
 }
 #[derive(Serialize)]
 struct ClientMob {
+    id: usize,
     pos: Vector2<f32>,
     health: u8,
     t: String,
@@ -96,20 +103,33 @@ struct Playfield {
     players: Vec<ClientPlayer>,
     mobs: Vec<ClientMob>,
 }
+#[derive(Debug)]
+enum CollisionId {
+    Mob(usize),
+    Player(usize),
+}
 impl GameServer {
     pub fn new() -> GameServer {
         let mut rng = rand::thread_rng();
-
+        let mut cg = CollisionGroups::new();
+        cg.set_membership(&[1]);
         GameServer {
             sessions: HashMap::new(),
             players: HashMap::new(),
             mobs: (0..rng.gen_range(5, 20))
-                .map(|_| Mobs::Skeleton {
-                    pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
-                    health: 128,
+                .map(|_| {
+                    (
+                        rng.gen::<usize>(),
+                        Mobs::Skeleton {
+                            pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
+                            health: 128,
+                        },
+                    )
                 })
                 .collect(),
             cw: CollisionWorld::new(0.02),
+            cg,
+            ch: HashMap::new(),
             rng: RefCell::new(rng),
         }
     }
@@ -126,7 +146,7 @@ impl GameServer {
                 p.pos.x = p.pos.x.max(0.0).min(800.0);
                 p.pos.y = p.pos.y.max(0.0).min(800.0);
             }
-            for m in &mut act.mobs {
+            for m in act.mobs.values_mut() {
                 m.update();
             }
 
@@ -145,8 +165,9 @@ impl GameServer {
                 mobs: act
                     .mobs
                     .iter()
-                    .map(|m| match m {
+                    .map(|(i, m)| match m {
                         Mobs::Skeleton { pos, health } => ClientMob {
+                            id: *i,
                             t: "skeleton".to_string(),
                             health: *health,
                             pos: *pos,
@@ -162,17 +183,49 @@ impl GameServer {
     }
 
     fn collide_players(&mut self) {
-        // self.players
-        if let Some((id, player)) = self.players.iter().next() {
+        for (id, player) in self.players.iter() {
             let position = ::na::Isometry2::new(player.pos, ::na::zero());
-            // skeleton size 84, 150
+            if let Some(co) = self.ch.get_mut(id) {
+                self.cw.set_position(*co, position)
+            }
             // player size 112, 200
-            let shape = ShapeHandle::new(Cuboid::new(Vector2::new(56.0, 100.0)));
-            let collision_groups = CollisionGroups::new();
-            let proximity_query = GeometricQueryType::Proximity(0.0);
-            self.cw
-                .add(position, shape, collision_groups, proximity_query, *id);
         }
+        for event in self.cw.proximity_events() {
+            // let co1 = self.cw.collision_object(event.collider1).unwrap();
+            // let co2 = self.cw.collision_object(event.collider2).unwrap();
+
+            if event.new_status == Proximity::Intersecting {
+                println!("The players enters the area.");
+            } else if event.new_status == Proximity::Disjoint {
+                println!("The player leaves the area.");
+            }
+        }
+        for event in self.cw.contact_events() {
+            println!("contactevent");
+            if let &ContactEvent::Started(collider1, collider2) = event {
+                // NOTE: real-life applications would avoid this systematic allocation.
+                let pair = self.cw.contact_pair(collider1, collider2).unwrap();
+                let mut collector = Vec::new();
+                pair.contacts(&mut collector);
+
+                let co1 = self.cw.collision_object(collider1).unwrap();
+                let co2 = self.cw.collision_object(collider2).unwrap();
+
+                println!("{:?} {:?}", co1.data(), co2.data());
+                // The ball is the one with a non-None velocity.
+                // if let Some(ref vel) = co1.data().velocity {
+                //     let normal = collector[0].deepest_contact().unwrap().contact.normal;
+                //     vel.set(vel.get() - 2.0 * na::dot(&vel.get(), &normal) * *normal);
+                // }
+                // if let Some(ref vel) = co2.data().velocity {
+                //     let normal = -collector[0].deepest_contact().unwrap().contact.normal;
+                //     vel.set(vel.get() - 2.0 * na::dot(&vel.get(), &normal) * *normal);
+                // }
+            }
+        }
+
+        self.cw.update()
+        // skeleton size 84, 150
     }
 }
 
@@ -220,15 +273,27 @@ impl Handler<ServerMessage> for GameServer {
 
     fn handle(&mut self, msg: ServerMessage, _: &mut Context<Self>) {
         if let ClientMessage::Name(_) = msg.m {
-            self.players.insert(
+            let p = Player {
+                key: Vector2::new(0.0, 0.0),
+                pos: Vector2::new(400.0, 400.0),
+                health: 128,
+                mouse: false,
+            };
+            let proximity_query = GeometricQueryType::Proximity(0.0);
+            let position = ::na::Isometry2::new(p.pos, ::na::zero());
+            // player size 112, 200
+            let shape = ShapeHandle::new(Cuboid::new(Vector2::new(56.0, 100.0)));
+            self.ch.insert(
                 msg.id,
-                Player {
-                    key: Vector2::new(0.0, 0.0),
-                    pos: Vector2::new(400.0, 400.0),
-                    health: 128,
-                    mouse: false,
-                },
+                self.cw.add(
+                    position,
+                    shape,
+                    self.cg,
+                    proximity_query,
+                    CollisionId::Player(msg.id),
+                ),
             );
+            self.players.insert(msg.id, p);
         }
         if let Some(p) = self.players.get_mut(&msg.id) {
             match msg.m {
