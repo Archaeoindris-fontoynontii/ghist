@@ -3,7 +3,6 @@
 
 use actix::prelude::*;
 use na::Vector2;
-use ncollide2d::events::ContactEvent;
 use ncollide2d::query::Proximity;
 use ncollide2d::shape::{Cuboid, ShapeHandle};
 use ncollide2d::world::{
@@ -191,37 +190,34 @@ impl GameServer {
             // player size 112, 200
         }
         for event in self.cw.proximity_events() {
-            // let co1 = self.cw.collision_object(event.collider1).unwrap();
-            // let co2 = self.cw.collision_object(event.collider2).unwrap();
-
+            let co1 = self.cw.collision_object(event.collider1).unwrap();
+            let co2 = self.cw.collision_object(event.collider2).unwrap();
             if event.new_status == Proximity::Intersecting {
-                println!("The players enters the area.");
+                println!("The players collides with another player.");
+                if let (CollisionId::Player(i), CollisionId::Player(i2)) = (co1.data(), co2.data())
+                {
+                    if let Some(p) = self.players.get_mut(i) {
+                        p.health = 64;
+                    }
+                    if let Some(p2) = self.players.get_mut(i2) {
+                        p2.health = 64;
+                    }
+                }
             } else if event.new_status == Proximity::Disjoint {
-                println!("The player leaves the area.");
+                if let (CollisionId::Player(i), CollisionId::Player(i2)) = (co1.data(), co2.data())
+                {
+                    if let Some(p) = self.players.get_mut(i) {
+                        p.health = 128;
+                    }
+                    if let Some(p2) = self.players.get_mut(i2) {
+                        p2.health = 128;
+                    }
+                }
+                println!("The player stops colliding with another player.");
             }
         }
-        for event in self.cw.contact_events() {
-            println!("contactevent");
-            if let &ContactEvent::Started(collider1, collider2) = event {
-                // NOTE: real-life applications would avoid this systematic allocation.
-                let pair = self.cw.contact_pair(collider1, collider2).unwrap();
-                let mut collector = Vec::new();
-                pair.contacts(&mut collector);
-
-                let co1 = self.cw.collision_object(collider1).unwrap();
-                let co2 = self.cw.collision_object(collider2).unwrap();
-
-                println!("{:?} {:?}", co1.data(), co2.data());
-                // The ball is the one with a non-None velocity.
-                // if let Some(ref vel) = co1.data().velocity {
-                //     let normal = collector[0].deepest_contact().unwrap().contact.normal;
-                //     vel.set(vel.get() - 2.0 * na::dot(&vel.get(), &normal) * *normal);
-                // }
-                // if let Some(ref vel) = co2.data().velocity {
-                //     let normal = -collector[0].deepest_contact().unwrap().contact.normal;
-                //     vel.set(vel.get() - 2.0 * na::dot(&vel.get(), &normal) * *normal);
-                // }
-            }
+        for _ in self.cw.contact_events() {
+            panic!("This shouldn't happen");
         }
 
         self.cw.update()
