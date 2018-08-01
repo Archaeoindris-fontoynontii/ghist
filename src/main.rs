@@ -65,7 +65,7 @@ impl Actor for WsGameSession {
                         act.id = res;
                         ctx.text(
                             json!({
-                                "id": act.id,
+                                "you": act.id,
                                 "pos": Vector2::new(400.0, 400.0),
                             }).to_string(),
                         );

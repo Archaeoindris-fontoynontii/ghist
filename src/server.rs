@@ -34,6 +34,7 @@ pub struct Disconnect {
 pub enum ClientMessage {
     Name(String),
     Keys(Vector2<f32>),
+    Angle(f32),
     Click(bool),
 }
 
@@ -46,6 +47,7 @@ pub struct ServerMessage {
 pub struct Player {
     pub key: Vector2<f32>,
     pub pos: Vector2<f32>,
+    pub angle: f32,
     pub health: u8,
     pub mouse: bool,
 }
@@ -88,6 +90,7 @@ pub struct GameServer {
 struct ClientPlayer {
     id: usize,
     pos: Vector2<f32>,
+    angle: f32,
     health: u8,
 }
 #[derive(Serialize)]
@@ -158,6 +161,7 @@ impl GameServer {
                     .map(|(i, p)| ClientPlayer {
                         id: *i,
                         pos: p.pos,
+                        angle: p.angle,
                         health: p.health,
                     })
                     .collect(),
@@ -187,33 +191,21 @@ impl GameServer {
             if let Some(co) = self.ch.get_mut(id) {
                 self.cw.set_position(*co, position)
             }
-            // player size 112, 200
         }
         for event in self.cw.proximity_events() {
             let co1 = self.cw.collision_object(event.collider1).unwrap();
             let co2 = self.cw.collision_object(event.collider2).unwrap();
             if event.new_status == Proximity::Intersecting {
-                println!("The players collides with another player.");
                 if let (CollisionId::Player(i), CollisionId::Player(i2)) = (co1.data(), co2.data())
                 {
+                    // TODO: This doesn't work if you release at the exact right time
                     if let Some(p) = self.players.get_mut(i) {
-                        p.health = 64;
+                        p.pos -= p.key * 10.0;
                     }
                     if let Some(p2) = self.players.get_mut(i2) {
-                        p2.health = 64;
+                        p2.pos -= p2.key * 10.0;
                     }
                 }
-            } else if event.new_status == Proximity::Disjoint {
-                if let (CollisionId::Player(i), CollisionId::Player(i2)) = (co1.data(), co2.data())
-                {
-                    if let Some(p) = self.players.get_mut(i) {
-                        p.health = 128;
-                    }
-                    if let Some(p2) = self.players.get_mut(i2) {
-                        p2.health = 128;
-                    }
-                }
-                println!("The player stops colliding with another player.");
             }
         }
         for _ in self.cw.contact_events() {
@@ -260,7 +252,14 @@ impl Handler<Disconnect> for GameServer {
         // remove address
         self.sessions.remove(&msg.id);
         self.players.remove(&msg.id);
-        self.send_message(&::serde_json::to_string(&msg).unwrap())
+        if let Some(h) = self.ch.remove(&msg.id) {
+            self.cw.remove(&[h]);
+        }
+        self.send_message(
+            &json!({
+            "death": msg.id
+        }).to_string(),
+        );
     }
 }
 
@@ -272,6 +271,7 @@ impl Handler<ServerMessage> for GameServer {
             let p = Player {
                 key: Vector2::new(0.0, 0.0),
                 pos: Vector2::new(400.0, 400.0),
+                angle: 0.0,
                 health: 128,
                 mouse: false,
             };
@@ -295,6 +295,7 @@ impl Handler<ServerMessage> for GameServer {
             match msg.m {
                 ClientMessage::Keys(k) => p.key = k,
                 ClientMessage::Click(b) => p.mouse = b,
+                ClientMessage::Angle(a) => p.angle = a,
                 ClientMessage::Name(_) => (),
             }
         }

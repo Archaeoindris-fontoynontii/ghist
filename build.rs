@@ -1,5 +1,5 @@
-use std::process::Command;
 use std::fs::{self, DirEntry};
+use std::process::Command;
 
 fn main() -> std::io::Result<()> {
     let p = Command::new("npm")

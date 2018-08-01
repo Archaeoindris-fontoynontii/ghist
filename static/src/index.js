@@ -67,7 +67,11 @@ ws.addEventListener("open", () => {
 ws.addEventListener("close", () => (opened = false));
 ws.addEventListener("message", e => {
 	const m = JSON.parse(e.data);
-	if (m.id) myid = m.id;
+	if (m.you) myid = m.you;
+	if (m.death) {
+		app.stage.removeChild(sprites[m.death]);
+		delete sprites[m.death];
+	}
 	if (m.mobs) {
 		m.mobs.forEach(m => {
 			if (!mobs[m.id]) {
@@ -102,6 +106,10 @@ ws.addEventListener("message", e => {
 			sprites[p.id].x = p.pos[0];
 			sprites[p.id].y = p.pos[1];
 			sprites[p.id].alpha = p.health / 128;
+			if (loaded) {
+				var angle = (p.angle / Math.PI) * 16;
+				sprites[p.id].texture = frames[Math.floor(angle)];
+			}
 		});
 	}
 });
@@ -115,9 +123,8 @@ window.addEventListener("mousemove", e => {
 		e.clientX - window.innerWidth / 2,
 		e.clientY - window.innerHeight / 2
 	);
-	var angle = (a / Math.PI) * 16;
-	if (angle < 0) angle += 32;
-	if (sprites[myid]) sprites[myid].texture = frames[Math.floor(angle)];
+	if (a < 0) a += 2 * Math.PI;
+	send({ Angle: a });
 });
 window.addEventListener("keydown", e => {
 	let keyCopy = keys.slice();
