@@ -85,7 +85,7 @@ ws.addEventListener("message", e => {
 			}
 			mobs[m.id].x = m.pos[0];
 			mobs[m.id].y = m.pos[1];
-			mobs[m.id].alpha = m.health / 128;
+			mobs[m.id].alpha = m.health / 255;
 		});
 	}
 	if (m.players) {
@@ -105,7 +105,7 @@ ws.addEventListener("message", e => {
 			}
 			sprites[p.id].x = p.pos[0];
 			sprites[p.id].y = p.pos[1];
-			sprites[p.id].alpha = p.health / 128;
+			sprites[p.id].alpha = p.health / 255;
 			if (loaded) {
 				var angle = (p.angle / Math.PI) * 16;
 				sprites[p.id].texture = frames[Math.floor(angle)];

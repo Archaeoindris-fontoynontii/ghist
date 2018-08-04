@@ -124,7 +124,7 @@ impl GameServer {
                         rng.gen::<usize>(),
                         Mobs::Skeleton {
                             pos: Vector2::new(rng.gen::<f32>() * 800.0, rng.gen::<f32>() * 800.0),
-                            health: 128,
+                            health: 255,
                         },
                     )
                 })
@@ -294,7 +294,7 @@ impl Handler<ServerMessage> for GameServer {
                 key: Vector2::new(0.0, 0.0),
                 pos: Vector2::new(400.0, 400.0),
                 angle: 0.0,
-                health: 128,
+                health: 255,
                 mouse: false,
             };
             let proximity_query = GeometricQueryType::Proximity(0.0);
