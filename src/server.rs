@@ -196,7 +196,13 @@ impl GameServer {
                 true
             }
         });
-
+        for p in &delete {
+            self.send_message(
+                &json!({
+                    "death": p,
+                }).to_string(),
+            )
+        }
         let chs: Vec<_> = delete.iter().map(|e| self.ch.remove(e).unwrap()).collect();
         self.cw.remove(&chs);
     }

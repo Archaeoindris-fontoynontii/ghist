@@ -51,7 +51,6 @@ app.loader.add("imgs/testing.json").load(_ => {
 let ws = new WebSocket("ws://" + window.location.host + "/ws/");
 let opened = false;
 let myid = 0;
-let mypos = [300, 200];
 
 document.getElementById("username").focus();
 document.getElementById("username").addEventListener("keydown", e => {
@@ -71,6 +70,13 @@ ws.addEventListener("message", e => {
 	if (m.death) {
 		app.stage.removeChild(sprites[m.death]);
 		delete sprites[m.death];
+
+		if (m.death == myid) {
+			document.getElementById("login").style.display = "block";
+			document.getElementById("username").focus();
+			app.stage.pivot.x = 400;
+			app.stage.pivot.y = 400;
+		}
 	}
 	if (m.mobs) {
 		m.mobs.forEach(m => {
