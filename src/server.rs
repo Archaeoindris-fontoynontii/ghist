@@ -154,6 +154,8 @@ impl GameServer {
 
             act.collide_players();
 
+            act.reap_players();
+
             let playfield = Playfield {
                 players: act
                     .players
@@ -184,32 +186,52 @@ impl GameServer {
             act.tick(ctx);
         });
     }
+    fn reap_players(&mut self) {
+        let mut delete = Vec::new();
+        self.players.retain(|i, p| {
+            if p.health == 0 {
+                delete.push(*i);
+                false
+            } else {
+                true
+            }
+        });
 
+        let chs: Vec<_> = delete.iter().map(|e| self.ch.remove(e).unwrap()).collect();
+        self.cw.remove(&chs);
+    }
     fn collide_players(&mut self) {
-        for (id, player) in self.players.iter() {
+        for (id, player) in &self.players {
             let position = ::na::Isometry2::new(player.pos, ::na::zero());
             if let Some(co) = self.ch.get_mut(id) {
                 self.cw.set_position(*co, position)
             }
         }
+        self.cw.update();
+
+        let mut changed = Vec::new();
         for event in self.cw.proximity_events() {
             let co1 = self.cw.collision_object(event.collider1).unwrap();
             let co2 = self.cw.collision_object(event.collider2).unwrap();
             if event.new_status == Proximity::Intersecting {
                 if let (CollisionId::Player(i), CollisionId::Player(i2)) = (co1.data(), co2.data())
                 {
-                    // TODO: This doesn't work if you release at the exact right time
                     if let Some(p) = self.players.get_mut(i) {
-                        p.pos -= p.key * 10.0;
+                        p.pos -= p.key * 2.0;
+                        p.health = p.health.saturating_sub(1);
+                        changed.push((p.pos, event.collider1));
                     }
                     if let Some(p2) = self.players.get_mut(i2) {
-                        p2.pos -= p2.key * 10.0;
+                        p2.pos -= p2.key * 2.0;
+                        p2.health = p2.health.saturating_sub(1);
+                        changed.push((p2.pos, event.collider2));
                     }
                 }
             }
         }
-        for _ in self.cw.contact_events() {
-            panic!("This shouldn't happen");
+        for (pos, c) in changed {
+            let position = ::na::Isometry2::new(pos, ::na::zero());
+            self.cw.set_position(c, position);
         }
 
         self.cw.update()

@@ -1,4 +1,4 @@
-use std::fs::{self, DirEntry};
+use std::fs;
 use std::process::Command;
 
 fn main() -> std::io::Result<()> {
@@ -15,7 +15,7 @@ fn main() -> std::io::Result<()> {
     println!("cargo:rerun-if-changed={}", "static/index.html");
     println!("cargo:rerun-if-changed={}", "static/style.css");
     for entry in fs::read_dir("static/src")? {
-        println!("cargo:rerun-if-changed={}", entry?.path().display()); //"static/src/index.js");
+        println!("cargo:rerun-if-changed={}", entry?.path().display());
     }
     Ok(())
 }
